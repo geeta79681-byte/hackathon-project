@@ -1,4 +1,5 @@
 import { useState } from "react";
+const API_URL = "http://127.0.0.1:5000";
 import "./App.css";
 
 const questions = [
@@ -10,57 +11,137 @@ const questions = [
 ];
 
 function App() {
-  const [page, setPage] = useState("home");
-  const [questionIndex, setQuestionIndex] = useState(0);
-  const [answer, setAnswer] = useState("");
-  const [score, setScore] = useState(0);
-  const [answers, setAnswers] = useState([]);
+   const [page, setPage] = useState("home");
+   const [questionIndex, setQuestionIndex] = useState(0);
+   const [answer, setAnswer] = useState("");
+   const [score, setScore] = useState(0);
+   const [answers, setAnswers] = useState([]);
 
-  const startInterview = () => {
+   const [role, setRole] = useState("");
+   const [interviewType, setInterviewType] = useState("Technical");
+   const [difficulty, setDifficulty] = useState("easy");
+
+   const [currentQuestion, setCurrentQuestion] = useState("");
+   const [feedback, setFeedback] = useState("");
+   const [loading, setLoading] = useState(false);
+
+  const startInterview = async () => {
+  setLoading(true);
+
+  try {
+    const response = await fetch(`${API_URL}/api/question`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        role: role,
+        interview_type: interviewType,
+        difficulty: difficulty,
+      }),
+    });
+
+    const data = await response.json();
+
+    setCurrentQuestion(data.question);
     setQuestionIndex(0);
     setAnswer("");
     setAnswers([]);
     setScore(0);
     setPage("interview");
-  };
+  } catch (error) {
+    console.error(error);
+    alert("Could not connect to the AI backend. Make sure Flask and Ollama are running.");
+  } finally {
+    setLoading(false);
+  }
+};
 
-  const submitAnswer = () => {
-    if (!answer.trim()) {
-      alert("Please write an answer first.");
-      return;
-    }
+  const submitAnswer = async () => {
+  if (!answer.trim()) {
+    alert("Please write an answer first.");
+    return;
+  }
 
-    const words = answer.trim().split(/\s+/).length;
+  setLoading(true);
 
-    let currentScore = 5;
+  try {
+    const response = await fetch(`${API_URL}/api/evaluate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        role: role,
+        interview_type: interviewType,
+        difficulty: difficulty,
+        question: currentQuestion,
+        user_answer: answer,
+      }),
+    });
 
-    if (words >= 20) currentScore = 7;
-    if (words >= 40) currentScore = 8;
-    if (words >= 70) currentScore = 9;
+    const data = await response.json();
+
+    setFeedback(data.feedback);
+
+    const match = data.feedback.match(/Score:\s*(\d+)\/10/i);
+    const currentScore = match ? Number(match[1]) : 0;
 
     setScore(currentScore);
 
-    setAnswers([
-      ...answers,
+    setAnswers((prev) => [
+      ...prev,
       {
-        question: questions[questionIndex],
+        question: currentQuestion,
         answer: answer,
         score: currentScore,
       },
     ]);
 
     setPage("feedback");
-  };
+  } catch (error) {
+    console.error(error);
+    alert("Could not connect to the AI backend.");
+  } finally {
+    setLoading(false);
+  }
+}; 
 
-  const nextQuestion = () => {
-    if (questionIndex === questions.length - 1) {
-      setPage("report");
-    } else {
-      setQuestionIndex(questionIndex + 1);
-      setAnswer("");
-      setPage("interview");
-    }
-  };
+  const nextQuestion = async () => {
+  if (questionIndex === 4) {
+    setPage("report");
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    const response = await fetch(`${API_URL}/api/question`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        role: role,
+        interview_type: interviewType,
+        difficulty: difficulty,
+      }),
+    });
+
+    const data = await response.json();
+
+    setCurrentQuestion(data.question);
+    setQuestionIndex(questionIndex + 1);
+    setAnswer("");
+    setPage("interview");
+  } catch (error) {
+    console.error(error);
+    alert("Could not generate the next question.");
+  } finally {
+    setLoading(false);
+  }
+};
+ 
 
   const practiceAgain = () => {
     setQuestionIndex(0);
@@ -387,7 +468,7 @@ function App() {
               </p>
 
               <h2>
-                {questions[questionIndex]}
+                {currentQuestion}
               </h2>
 
             </div>
@@ -469,18 +550,9 @@ function App() {
 
             <div className="feedback-columns">
 
-              <div>
-                <h3>✓ Strengths</h3>
-                <p>• Answer was relevant.</p>
-                <p>• Good attempt at explaining your idea.</p>
-                <p>• You showed understanding.</p>
-              </div>
-
-              <div>
-                <h3>↗ Improvements</h3>
-                <p>• Structure your answer clearly.</p>
-                <p>• Add practical examples.</p>
-                <p>• Be more specific.</p>
+               <div>
+              <h3>🤖 AI Feedback</h3>
+              <p style={{ whiteSpace: "pre-line" }}>{feedback}</p>
               </div>
 
             </div>
