@@ -14,3 +14,4 @@ def solve_problem(problem):
     return response.json()["response"]
 
 print("TEST:", solve_problem("Say hello in one sentence."))
+# Agent ready for integration
